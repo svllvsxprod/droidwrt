@@ -6,6 +6,30 @@
 <p align="center"><img src="docs/readme/preview.png" width="360" alt="Anonymized demo preview"></p>
 > Anonymized presentation image: branding and data were replaced with AI. An interface illustration, not an unedited screenshot.
 
+## Interface gallery
+
+Individual views of the current interface. Addresses, profile names and network identity were replaced with demo values using AI.
+
+### VPN and routes
+
+<p><img src="docs/readme/demo-vpn.png" width="360" alt="VPN and routes"></p>
+
+### Connection sharing
+
+<p><img src="docs/readme/demo-sharing.png" width="360" alt="Connection sharing"></p>
+
+### Wi-Fi settings
+
+<p><img src="docs/readme/demo-wifi.png" width="360" alt="Wi-Fi settings"></p>
+
+### Protection checks
+
+<p><img src="docs/readme/demo-protection.png" width="360" alt="Protection checks"></p>
+
+### Pocket lock
+
+<p><img src="docs/readme/demo-pocket.png" width="360" alt="Pocket lock"></p>
+
 ## Highlights
 
 | Feature | What is included |

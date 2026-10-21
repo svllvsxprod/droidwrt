@@ -6,6 +6,30 @@
 <p align="center"><img src="docs/readme/preview.png" width="360" alt="Anonymized demo preview"></p>
 > Обезличенный демонстрационный кадр: брендинг и данные заменены с помощью AI. Иллюстрация интерфейса, не неизменённый скриншот.
 
+## Галерея интерфейса
+
+Отдельные экраны текущего интерфейса. Адреса, имена профилей и сеть заменены демонстрационными с помощью AI.
+
+### VPN и маршруты
+
+<p><img src="docs/readme/demo-vpn.png" width="360" alt="VPN и маршруты"></p>
+
+### Раздача подключения
+
+<p><img src="docs/readme/demo-sharing.png" width="360" alt="Раздача подключения"></p>
+
+### Настройки Wi-Fi
+
+<p><img src="docs/readme/demo-wifi.png" width="360" alt="Настройки Wi-Fi"></p>
+
+### Проверка защиты
+
+<p><img src="docs/readme/demo-protection.png" width="360" alt="Проверка защиты"></p>
+
+### Защита от случайных касаний
+
+<p><img src="docs/readme/demo-pocket.png" width="360" alt="Защита от случайных касаний"></p>
+
 ## Возможности
 
 | Возможность | Реализация |

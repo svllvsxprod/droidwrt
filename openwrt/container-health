@@ -1,0 +1,45 @@
+#!/bin/sh
+# Local checks do not confuse loss of Internet with a broken container.
+set -eu
+MODE=${1:-check}
+service_bad() {
+ name=$1
+ pids=$(pidof "$name" 2>/dev/null || true)
+ [ -n "$pids" ] || return 0
+ for p in $pids; do
+  state=$(awk '/^State:/{print $2}' "/proc/$p/status" 2>/dev/null || true)
+  case "$state" in T|t|Z|D|'') return 0;; esac
+ done
+ return 1
+}
+if [ "$MODE" = check ]; then
+ ubus -t 2 call service list '{"name":"network"}' >/dev/null 2>&1 || { echo init; exit; }
+ for name in netifd dnsmasq odhcpd uhttpd; do
+  if service_bad "$name"; then echo "$name"; exit; fi
+ done
+ ubus -t 2 call network.interface.lan status | grep -q '"up": true' || { echo netifd; exit; }
+ ip addr show dwr-lan | grep -q '192.168.8.1/24' || { echo netifd; exit; }
+ # This minimal rootfs has no timeout applet. Bound just the DNS child.
+ ( nslookup localhost 127.0.0.1 >/dev/null 2>&1 & query=$!
+   ( sleep 3; kill "$query" 2>/dev/null || true ) & timer=$!
+   rc=0; wait "$query" || rc=$?
+   kill "$timer" 2>/dev/null || true
+   exit "$rc"
+ ) || { echo dnsmasq; exit; }
+ curl -fsS --max-time 2 -o /dev/null http://127.0.0.1/ || { echo uhttpd; exit; }
+ for IPT in iptables ip6tables; do
+  "$IPT" -w 2 -C DWR_GUARD -j DROP 2>/dev/null || { echo policy; exit; }
+  "$IPT" -w 2 -C FORWARD -i dwr-lan -j DWR_GUARD 2>/dev/null || { echo policy; exit; }
+ done
+ echo healthy
+ exit
+fi
+[ "$MODE" = repair ] || exit 2
+name=${2:-}
+case "$name" in netifd) service=network;; dnsmasq|odhcpd|uhttpd) service=$name;; policy) exit 0;; *) exit 2;; esac
+# procd can restart a crashed child; a SIGSTOP'ed child needs explicit termination.
+for p in $(pidof "$name" 2>/dev/null || true); do
+ state=$(awk '/^State:/{print $2}' "/proc/$p/status" 2>/dev/null || true)
+ case "$state" in T|t) kill -KILL "$p";; esac
+done
+"/etc/init.d/$service" restart

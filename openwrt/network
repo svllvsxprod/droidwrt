@@ -1,0 +1,32 @@
+config interface 'loopback'
+	option device 'lo'
+	option proto 'static'
+	option ipaddr '127.0.0.1'
+	option netmask '255.0.0.0'
+
+config interface 'management'
+	option device 'dwr-mgmt'
+	option proto 'static'
+	option ipaddr '172.29.255.2'
+	option netmask '255.255.255.252'
+
+config interface 'lan'
+	option device 'dwr-lan'
+	option proto 'static'
+	option ipaddr '192.168.8.1'
+	option netmask '255.255.255.0'
+	option ip6addr 'fd57:6477:7274:1::1/64'
+
+config device
+	option name 'dwr-lan'
+	option type 'bridge'
+	option bridge_empty '1'
+
+config interface 'wan'
+	option device 'dwr-wan'
+	option proto 'static'
+	option ipaddr '172.29.254.2'
+	option netmask '255.255.255.252'
+	option gateway '172.29.254.1'
+	option peerdns '0'
+	option auto '1'

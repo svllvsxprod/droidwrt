@@ -1,0 +1,7 @@
+config system
+	option hostname 'DroidWRT'
+	option timezone 'MSK-3'
+	option zonename 'Europe/Moscow'
+	option log_size '128'
+	option log_remote '0'
+	option cronloglevel '9'

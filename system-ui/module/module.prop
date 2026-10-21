@@ -1,0 +1,6 @@
+id=droidwrt_usb_picker
+name=DroidWRT USB interface
+version=1
+versionCode=1
+author=DroidWRT
+description=Suppress automatic USB mode picker; preserve USB settings and notifications. Exact Infinity-X SystemUI build only.

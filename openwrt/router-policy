@@ -1,0 +1,130 @@
+#!/bin/sh
+set -eu
+ENGINE=${1:-blocked}
+case "$ENGINE" in awg) MARK=0xd101;; mihomo) MARK=0xd102;; direct) MARK=0xd103;; blocked) MARK=0xd1ff;; *) exit 1;; esac
+# Enabling VPN closes old direct flows in BOTH directions. Sticky connections
+# survive VPN-to-VPN switching, but cannot keep bypassing VPN after direct mode.
+DIRECT_ACTION=DROP
+[ "$ENGINE" != direct ] || DIRECT_ACTION=RETURN
+for IPT in iptables ip6tables; do
+ "$IPT" -w -N DWR_DIRECT 2>/dev/null || true
+ "$IPT" -w -R DWR_DIRECT 1 -j "$DIRECT_ACTION" 2>/dev/null || "$IPT" -w -A DWR_DIRECT -j "$DIRECT_ACTION"
+ for direction in -i -o; do
+  "$IPT" -w -C FORWARD "$direction" dwr-lan -m connmark --mark 0xd103/0xffff -j DWR_DIRECT 2>/dev/null || "$IPT" -w -I FORWARD 1 "$direction" dwr-lan -m connmark --mark 0xd103/0xffff -j DWR_DIRECT
+ done
+done
+iptables -w -t mangle -N DWR_MARK 2>/dev/null || true
+iptables -w -t mangle -N DWR_PICK 2>/dev/null || true
+iptables -w -t mangle -C PREROUTING -i dwr-lan -j DWR_MARK 2>/dev/null || iptables -w -t mangle -I PREROUTING 1 -i dwr-lan -j DWR_MARK
+iptables -w -t mangle -C DWR_MARK -j CONNMARK --restore-mark --nfmask 0xffff --ctmask 0xffff 2>/dev/null || iptables -w -t mangle -A DWR_MARK -j CONNMARK --restore-mark --nfmask 0xffff --ctmask 0xffff
+iptables -w -t mangle -C DWR_MARK -m mark --mark 0/0xffff -j DWR_PICK 2>/dev/null || iptables -w -t mangle -A DWR_MARK -m mark --mark 0/0xffff -j DWR_PICK
+iptables -w -t mangle -C DWR_MARK -j CONNMARK --save-mark --nfmask 0xffff --ctmask 0xffff 2>/dev/null || iptables -w -t mangle -A DWR_MARK -j CONNMARK --save-mark --nfmask 0xffff --ctmask 0xffff
+# An atomic single-rule replacement changes only new, unmarked connections.
+iptables -w -t mangle -R DWR_PICK 1 -j MARK --set-xmark "$MARK/0xffff" 2>/dev/null || iptables -w -t mangle -A DWR_PICK -j MARK --set-xmark "$MARK/0xffff"
+iptables -w -N DWR_GUARD 2>/dev/null || true
+iptables -w -C FORWARD -i dwr-lan -j DWR_GUARD 2>/dev/null || iptables -w -I FORWARD 1 -i dwr-lan -j DWR_GUARD
+for mapping in '0xd101 awg0' '0xd102 dwr-vpn'; do
+ set -- $mapping
+ iptables -w -C DWR_GUARD -m mark --mark "$1/0xffff" -o "$2" -j ACCEPT 2>/dev/null || iptables -w -I DWR_GUARD 1 -m mark --mark "$1/0xffff" -o "$2" -j ACCEPT
+done
+if [ "$ENGINE" = direct ]; then
+ iptables -w -C DWR_GUARD -m mark --mark 0xd103/0xffff -o dwr-wan -j ACCEPT 2>/dev/null || iptables -w -I DWR_GUARD 1 -m mark --mark 0xd103/0xffff -o dwr-wan -j ACCEPT
+else
+ while iptables -w -D DWR_GUARD -m mark --mark 0xd103/0xffff -o dwr-wan -j ACCEPT 2>/dev/null; do :; done
+fi
+iptables -w -C DWR_GUARD -j DROP 2>/dev/null || iptables -w -A DWR_GUARD -j DROP
+# IPv6 has the same independent connection marks and fail-closed route tables.
+ip6tables -w -t mangle -N DWR_MARK 2>/dev/null || true
+ip6tables -w -t mangle -N DWR_PICK 2>/dev/null || true
+ip6tables -w -N DWR_GUARD 2>/dev/null || true
+ip6tables -w -C DWR_GUARD -j DROP 2>/dev/null || ip6tables -w -A DWR_GUARD -j DROP
+ip6tables -w -C FORWARD -i dwr-lan -j DWR_GUARD 2>/dev/null || ip6tables -w -I FORWARD 1 -i dwr-lan -j DWR_GUARD
+for mapping in '0xd101 awg0' '0xd102 dwr-vpn'; do
+ set -- $mapping
+ ip6tables -w -C DWR_GUARD -m mark --mark "$1/0xffff" -o "$2" -j ACCEPT 2>/dev/null || ip6tables -w -I DWR_GUARD 1 -m mark --mark "$1/0xffff" -o "$2" -j ACCEPT
+done
+if [ "$ENGINE" = direct ]; then
+ ip6tables -w -C DWR_GUARD -m mark --mark 0xd103/0xffff -o dwr-wan -j ACCEPT 2>/dev/null || ip6tables -w -I DWR_GUARD 1 -m mark --mark 0xd103/0xffff -o dwr-wan -j ACCEPT
+else
+ while ip6tables -w -D DWR_GUARD -m mark --mark 0xd103/0xffff -o dwr-wan -j ACCEPT 2>/dev/null; do :; done
+fi
+ip6tables -w -t mangle -C PREROUTING -i dwr-lan -j DWR_MARK 2>/dev/null || ip6tables -w -t mangle -I PREROUTING 1 -i dwr-lan -j DWR_MARK
+ip6tables -w -t mangle -C DWR_MARK -j CONNMARK --restore-mark --nfmask 0xffff --ctmask 0xffff 2>/dev/null || ip6tables -w -t mangle -A DWR_MARK -j CONNMARK --restore-mark --nfmask 0xffff --ctmask 0xffff
+ip6tables -w -t mangle -C DWR_MARK -m mark --mark 0/0xffff -j DWR_PICK 2>/dev/null || ip6tables -w -t mangle -A DWR_MARK -m mark --mark 0/0xffff -j DWR_PICK
+ip6tables -w -t mangle -C DWR_MARK -j CONNMARK --save-mark --nfmask 0xffff --ctmask 0xffff 2>/dev/null || ip6tables -w -t mangle -A DWR_MARK -j CONNMARK --save-mark --nfmask 0xffff --ctmask 0xffff
+ip6tables -w -t mangle -R DWR_PICK 1 -j MARK --set-xmark "$MARK/0xffff" 2>/dev/null || ip6tables -w -t mangle -A DWR_PICK -j MARK --set-xmark "$MARK/0xffff"
+sysctl -w net.ipv6.conf.dwr-lan.disable_ipv6=0 net.ipv6.conf.all.forwarding=1 >/dev/null
+ip -6 address replace fd57:6477:7274:1::1/64 dev dwr-lan nodad
+for table in 201 202 203; do
+ ip -6 route replace blackhole default metric 32767 table "$table"
+ ip -6 route replace fd57:6477:7274:1::/64 dev dwr-lan table "$table"
+done
+if ip -6 addr show dev awg0 scope global 2>/dev/null | grep -q inet6; then
+ ip -6 route replace default dev awg0 metric 10 table 201
+else
+ ip -6 route del default dev awg0 metric 10 table 201 2>/dev/null || true
+fi
+ip -6 route replace default dev dwr-vpn metric 10 table 202 2>/dev/null || true
+# Native WAN IPv6 is populated only when the Android uplink has IPv6 connectivity.
+if ip -6 route show default dev dwr-wan | grep -q '^default via'; then
+ ip -6 route replace default via fd57:6477:7274:2::1 dev dwr-wan metric 10 table 203
+else
+ ip -6 route del default dev dwr-wan metric 10 table 203 2>/dev/null || true
+fi
+for mapping in '0xd101 201' '0xd102 202' '0xd103 203'; do
+ set -- $mapping
+ ip -6 rule show | grep -q "fwmark $1/0xffff lookup $2" || ip -6 rule add pref "12$2" fwmark "$1/0xffff" lookup "$2"
+done
+for device in awg0 dwr-wan; do
+ ip6tables -w -t nat -C POSTROUTING -s fd57:6477:7274:1::/64 -o "$device" -j MASQUERADE 2>/dev/null || ip6tables -w -t nat -A POSTROUTING -s fd57:6477:7274:1::/64 -o "$device" -j MASQUERADE
+done
+ip6tables -w -t nat -N DWR_DNS 2>/dev/null || true
+ip6tables -w -t nat -C DWR_DNS -j DNAT --to-destination 2606:4700:4700::1111 2>/dev/null || ip6tables -w -t nat -A DWR_DNS -j DNAT --to-destination 2606:4700:4700::1111
+for protocol in udp tcp; do
+ ip6tables -w -t nat -C PREROUTING -i dwr-lan -p "$protocol" --dport 53 -j DWR_DNS 2>/dev/null || ip6tables -w -t nat -I PREROUTING 1 -i dwr-lan -p "$protocol" --dport 53 -j DWR_DNS
+done
+# Remove the temporary blanket block only after the IPv6 policy is complete.
+while ip6tables -w -D FORWARD -i dwr-lan -j DROP 2>/dev/null; do :; done
+iptables -w -t nat -C POSTROUTING -s 192.168.8.0/24 -o awg0 -j MASQUERADE 2>/dev/null || iptables -w -t nat -A POSTROUTING -s 192.168.8.0/24 -o awg0 -j MASQUERADE
+iptables -w -t nat -C POSTROUTING -s 192.168.8.0/24 -o dwr-wan -j MASQUERADE 2>/dev/null || iptables -w -t nat -A POSTROUTING -s 192.168.8.0/24 -o dwr-wan -j MASQUERADE
+for table in 201 202 203; do
+ ip route replace blackhole default metric 32767 table "$table"
+ ip route replace 192.168.8.0/24 dev dwr-lan table "$table"
+ ip route replace 172.29.255.0/30 dev dwr-mgmt table "$table"
+ ip route replace 172.29.254.0/30 dev dwr-wan table "$table"
+done
+ip route replace default dev awg0 metric 10 table 201 2>/dev/null || true
+ip route replace default dev dwr-vpn metric 10 table 202 2>/dev/null || true
+ip route replace default via 172.29.254.1 dev dwr-wan metric 10 table 203
+for mapping in '0xd101 201' '0xd102 202' '0xd103 203'; do
+ set -- $mapping
+ ip rule show | grep -q "fwmark $1/0xffff lookup $2" || ip rule add pref "12$2" fwmark "$1/0xffff" lookup "$2"
+done
+# Bind health probes to the same TUN route table as client traffic.
+for family in -4 -6; do
+ ip "$family" rule show | grep -q '10201:.*oif awg0 lookup 201' || ip "$family" rule add pref 10201 oif awg0 lookup 201
+ ip "$family" rule show | grep -q '10202:.*oif dwr-vpn lookup 202' || ip "$family" rule add pref 10202 oif dwr-vpn lookup 202
+done
+# Client DNS is forwarded through the same per-flow VPN policy, including queries to the router.
+# If DNAT is unavailable, never let the local resolver silently forward client queries over WAN.
+for protocol in udp tcp; do
+ iptables -w -C INPUT -i dwr-lan -p "$protocol" --dport 53 -j DROP 2>/dev/null || iptables -w -I INPUT 1 -i dwr-lan -p "$protocol" --dport 53 -j DROP
+ ip6tables -w -C INPUT -i dwr-lan -p "$protocol" --dport 53 -j DROP 2>/dev/null || ip6tables -w -I INPUT 1 -i dwr-lan -p "$protocol" --dport 53 -j DROP
+done
+AWG_DNS=$(cat /etc/droidwrt/awg-dns 2>/dev/null || echo 1.1.1.1)
+case "$AWG_DNS" in ''|*[!0-9.]*) exit 1;; esac
+iptables -w -t nat -N DWR_DNS 2>/dev/null || true
+INDEX=1
+for mapping in "0xd101 $AWG_DNS" '0xd102 1.1.1.1' '0xd103 1.1.1.1'; do
+ set -- $mapping
+ iptables -w -t nat -R DWR_DNS "$INDEX" -m mark --mark "$1/0xffff" -j DNAT --to-destination "$2" 2>/dev/null || iptables -w -t nat -A DWR_DNS -m mark --mark "$1/0xffff" -j DNAT --to-destination "$2"
+ INDEX=$((INDEX+1))
+done
+for protocol in udp tcp; do
+ iptables -w -t nat -C PREROUTING -i dwr-lan -p "$protocol" --dport 53 -j DWR_DNS 2>/dev/null || iptables -w -t nat -I PREROUTING 1 -i dwr-lan -p "$protocol" --dport 53 -j DWR_DNS
+done
+sysctl -w net.ipv4.ip_forward=1 >/dev/null
+for IPT in iptables ip6tables; do
+ while "$IPT" -w -D FORWARD -i dwr-lan -m comment --comment dwr-recovery -j DROP 2>/dev/null; do :; done
+done
+echo "$ENGINE" > /etc/droidwrt/primary-engine

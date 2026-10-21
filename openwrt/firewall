@@ -1,0 +1,72 @@
+config defaults
+	option input 'REJECT'
+	option output 'ACCEPT'
+	option forward 'DROP'
+	option syn_flood '1'
+	option flow_offloading '0'
+	option flow_offloading_hw '0'
+	option auto_helper '0'
+
+config zone
+	option name 'management'
+	list network 'management'
+	option input 'ACCEPT'
+	option output 'ACCEPT'
+	option forward 'DROP'
+
+config zone
+	option name 'lan'
+	list network 'lan'
+	option input 'ACCEPT'
+	option output 'ACCEPT'
+	option forward 'DROP'
+
+config zone
+	option name 'wan'
+	list network 'wan'
+	option input 'REJECT'
+	option output 'ACCEPT'
+	option forward 'DROP'
+
+config zone
+	option name 'vpn'
+	list device 'awg0'
+	list device 'xray0'
+	list device 'dwr-vpn'
+	option input 'REJECT'
+	option output 'ACCEPT'
+	option forward 'DROP'
+	option masq '1'
+	option mtu_fix '1'
+
+config forwarding
+	option src 'lan'
+	option dest 'vpn'
+
+config rule
+	option name 'DHCP'
+	option src 'wan'
+	option proto 'udp'
+	option dest_port '68'
+	option family 'ipv4'
+	option target 'ACCEPT'
+
+config rule
+	option name 'ICMPv6'
+	option src '*'
+	option proto 'icmp'
+	option family 'ipv6'
+	list icmp_type 'destination-unreachable'
+	list icmp_type 'packet-too-big'
+	list icmp_type 'time-exceeded'
+	list icmp_type 'bad-header'
+	list icmp_type 'unknown-header-type'
+	list icmp_type 'neighbour-solicitation'
+	list icmp_type 'neighbour-advertisement'
+	option limit '100/sec'
+	option target 'ACCEPT'
+
+config include 'droidwrt'
+	option type 'script'
+	option path '/etc/firewall.droidwrt'
+	option reload '1'

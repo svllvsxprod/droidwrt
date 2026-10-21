@@ -1,0 +1,47 @@
+--- a/drivers/misc/mediatek/video/mt6785/videox/mtkfb.c
++++ b/drivers/misc/mediatek/video/mt6785/videox/mtkfb.c
+@@ -93,6 +93,15 @@
+ #endif
+ #include "mmpath.h"
+ 
++/* Opt-in: clear the inherited bootloader frame only after display setup. */
++static bool droidwrt_clear_splash;
++
++static int __init droidwrt_clear_splash_setup(char *value)
++{
++	return kstrtobool(value, &droidwrt_clear_splash) == 0;
++}
++__setup("droidwrt.clear_splash=", droidwrt_clear_splash_setup);
++
+ /* static variable */
+ static u32 MTK_FB_XRES;
+ static u32 MTK_FB_YRES;
+@@ -2747,6 +2756,28 @@
+ 	init_state++; /* 4 */
+ 	DISPMSG("mtkfb_fbinfo_init done\n");
+ 
++	/*
++	 * Video-mode panels continuously scan the inherited framebuffer. Clear
++	 * only its first visible frame, before fbdev is published to userspace.
++	 * Do not touch boot images, panel power, charging/recovery screens, DAL,
++	 * or the other reserved framebuffer pages. Subsequent Android frames
++	 * and backlight requests use the unchanged display path.
++	 */
++	if (droidwrt_clear_splash && get_boot_mode() == NORMAL_BOOT &&
++	    primary_display_is_video_mode()) {
++		u64 bytes = (u64)fbi->var.xres_virtual * fbi->var.yres *
++			    fbi->var.bits_per_pixel / 8;
++
++		if (bytes && bytes <= fbi->screen_size && bytes <= vramsize) {
++			init_framebuffer(fbi);
++			wmb();
++			pr_info("DroidWRT: cleared inherited boot frame (%llu bytes)\n",
++				(unsigned long long)bytes);
++		} else {
++			pr_warn("DroidWRT: boot frame bounds invalid; kept splash\n");
++		}
++	}
++
+ 	if (disp_helper_get_stage() == DISP_HELPER_STAGE_NORMAL) {
+ 		/*
+ 		 * dal_init should after mtkfb_fbinfo_init, otherwise layer

@@ -1,0 +1,6 @@
+id=droidwrt_router
+name=DroidWRT Router
+version=1.0
+versionCode=1
+author=DroidWRT
+description=OpenWrt startup and local management

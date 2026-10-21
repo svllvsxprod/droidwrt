@@ -1,0 +1,28 @@
+# Backport of Linux commit 7f700334be9aeb91d5d86ef9ad2d901b9b453e9b.
+# The fallback removals from 0d7a7b2014b1 are already present in this tree.
+--- a/net/ipv6/ip6_gre.c
++++ b/net/ipv6/ip6_gre.c
+@@ -1373,6 +1373,7 @@
+ 	}
+ 	ip6gre_tnl_init_features(dev);
+ 
++	dev_hold(dev);
+ 	return 0;
+ }
+ 
+@@ -1706,6 +1707,7 @@
+ 	tunnel = netdev_priv(dev);
+ 	ip6gre_tnl_link_config(tunnel, 1);
+ 
++	dev_hold(dev);
+ 	return 0;
+ }
+ 
+@@ -1813,7 +1815,6 @@
+ 	if (tb[IFLA_MTU])
+ 		ip6_tnl_change_mtu(dev, nla_get_u32(tb[IFLA_MTU]));
+ 
+-	dev_hold(dev);
+ 	ip6gre_tunnel_link(ign, nt);
+ 
+ out:

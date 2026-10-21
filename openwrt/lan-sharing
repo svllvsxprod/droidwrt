@@ -1,0 +1,15 @@
+#!/bin/sh
+set -eu
+# Common dual-stack LAN service. With no physical member it serves diagnostics only.
+if [ "$(uci -q get dhcp.lan.dhcpv4)" = server ] && [ "$(uci -q get dhcp.lan.dhcpv6)" = server ] && [ "$(uci -q get dhcp.lan.ra_default)" = 2 ] && [ "$(uci -q get dhcp.lan.ra_mtu)" = 1280 ]; then exit 0; fi
+uci set dhcp.lan.dhcpv4=server
+uci set dhcp.lan.dhcpv6=server
+uci set dhcp.lan.ra=server
+uci set dhcp.lan.ra_default=2
+uci set dhcp.lan.ra_maxinterval=30
+uci set dhcp.lan.ra_mininterval=10
+uci set dhcp.lan.ra_lifetime=90
+uci set dhcp.lan.ra_mtu=1280
+uci commit dhcp
+/etc/init.d/dnsmasq restart
+/etc/init.d/odhcpd restart

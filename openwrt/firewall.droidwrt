@@ -1,0 +1,3 @@
+#!/bin/sh
+ENGINE=$(cat /etc/droidwrt/primary-engine 2>/dev/null || echo blocked)
+/usr/sbin/droidwrt-policy "$ENGINE"
